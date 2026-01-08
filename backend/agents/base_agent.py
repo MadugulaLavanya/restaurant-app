@@ -33,19 +33,19 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def act(self, decision: Dict[str, Any]) -> Any:
+    def act(self, decision: Dict[str, Any], **kwargs) -> Any:
         """
         Act: Execute actions based on decisions
         """
         pass
 
-    def run(self, environment: Dict[str, Any]) -> Any:
+    def run(self, environment: Dict[str, Any], **kwargs) -> Any:
         """
         Execute the full Sense → Decide → Act loop
         """
         logger.info(f"Agent '{self.name}' starting execution cycle")
         perception = self.sense(environment)
         decision = self.decide(perception)
-        result = self.act(decision)
+        result = self.act(decision, **kwargs)
         logger.info(f"Agent '{self.name}' completed execution cycle")
         return result

@@ -99,7 +99,7 @@ class QueueAgent(BaseAgent):
         
         return decisions
 
-    def act(self, decision: Dict[str, Any]) -> Any:
+    def act(self, decision: Dict[str, Any], **kwargs) -> Any:
         """
         Act: Return queue management actions
         """

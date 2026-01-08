@@ -89,7 +89,7 @@ class TableAgent(BaseAgent):
         
         return decisions
 
-    def act(self, decision: Dict[str, Any]) -> Any:
+    def act(self, decision: Dict[str, Any], **kwargs) -> Any:
         """
         Act: Return recommendations and alerts
         (Actual database updates are done by API endpoints)

@@ -2,34 +2,36 @@
 
 A modern, agent-driven web application that autonomously manages restaurant table availability and customer waiting queues, reducing customer waiting time and improving restaurant operational efficiency.
 
-## 🌟 Features
+## 🌟 Premium Features
 
-- **Real-time Table Management**: Live dashboard showing current table availability
-- **Intelligent Queue System**: Automated queue management with dynamic ETA calculations
-- **Agent-Based Architecture**: Autonomous agents handle table monitoring, queue management, and notifications
-- **Multi-User Support**: Separate interfaces for customers, staff, and managers
-- **WebSocket Integration**: Real-time updates without page refresh
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Autonomous Agent Intelligence**: Five dedicated AI agents (`Table`, `Queue`, `ETA`, `Notification`, `Analytics`) work in a coordinated **Sense-Decide-Act** loop.
+- **WebSocket Live Sync**: Zero-latency, real-time updates across all dashboards—Staff, Manager, and Customer.
+- **Predictive Analytics**: The `AnalyticsAgent` stores historical performance metrics to help the `ETAAgent` adjust wait times based on 15-minute occupancy trends.
+- **Customer Personal Portal**: A dedicated "Check My Status" page allows customers to track their position and AI-predicted ETA privately using their phone number.
+- **Premium UI/UX**: High-fidelity dark mode with **Glassmorphism**, entrance animations, custom scrollbars, and shimmer loading states for a state-of-the-art feel.
+- **Agent Hub Trace**: Real-time activity feed in the Staff Panel showing every autonomous decision made by the system.
+- **Manager Insights**: Dedicated analytics dashboard for operational health tracking, business tips, and capacity warnings.
 
 ## 🏗️ Architecture
 
 The application follows an agent-based architecture with the following components:
 
-### Autonomous Agents
-- **Table Agent**: Monitors and updates table states
-- **Queue Agent**: Manages customer queue and automatic reordering
-- **ETA Agent**: Predicts waiting time based on historical data
-- **Notification Agent**: Sends alerts to customers
+### Autonomous Agent Fleet
+- **TableAgent**: Monitors table states & detects "stale" occupancies (long-duration dining).
+- **QueueAgent**: Intelligently matches party sizes to available tables and reorders position for maximum efficiency.
+- **ETAAgent**: Uses historical occupancy trends to dynamically extend or reduce wait increments.
+- **NotificationAgent**: Coordinates critical logic between staff and customers (Seated notifications, Stale alerts).
+- **AnalyticsAgent**: Calculates and stores KPIs like `avg_wait_time` and `occupancy_rate` for long-term forecasting.
 
 ### System Flow
 ```
-Customer App / Staff App
+Customer UI / Staff UI / Manager UI
+         ↓ (WebSockets / REST)
+Agent Orchestration Layer (Coordinate Sense-Decide-Act)
+         ↓ (Injects DB Session)
+Backend Services (FastAPI + SQLAlchemy)
          ↓
-Agent Orchestration Layer
-         ↓
-Backend Services (FastAPI)
-         ↓
-SQLite / PostgreSQL Database
+PostgreSQL / SQLite Database (Metric Persistence)
 ```
 
 ## 🛠️ Technology Stack
@@ -215,14 +217,13 @@ Frontend configuration can be adjusted in `vite.config.js` for build settings an
 
 Key API endpoints (see http://localhost:8000/docs for full documentation):
 
-- `GET /tables` - Get all tables
-- `POST /tables` - Create a new table
-- `PUT /tables/{id}` - Update table status
-- `GET /queue` - Get current queue
-- `POST /queue` - Add customer to queue
-- `GET /queue/eta` - Get estimated waiting time
-- `GET /api/agents/status` - View real-time agent analysis
-- `POST /api/agents/run` - Manually trigger agent cycle
+- `GET /api/tables` - Get all tables (capacity, status, occupied_since)
+- `PUT /api/tables/{id}` - Update table status (triggers agent re-cycle)
+- `GET /api/queue` - Get current queue (AI-calculated positions & ETAs)
+- `POST /api/queue` - Join the waitlist
+- `GET /api/queue/status/{phone}` - Fetch personalized position for a specific customer
+- `GET /api/agents/status` - Full system diagnostic (Views every agent's internal reasoning)
+- `POST /api/agents/run` - Manually force a multi-agent orchestration cycle
 
 ## 🧪 Development
 
@@ -260,12 +261,12 @@ npm run build
 
 ## 🔮 Future Enhancements
 
-- AI-based ETA prediction using machine learning
-- Online table reservation system
-- Multi-branch restaurant support
-- Voice commands for staff
-- SMS/Push notification integration
-- Advanced analytics dashboard
+- AI-based demand forecasting (v3.0)
+- Online table reservation with deposit system
+- Multi-branch restaurant global orchestration
+- Voice-activated agent commands for kitchen staff
+- Native SMS/WhatsApp notification bridge
+- Detailed heatmaps for floor plan optimization
 - Mobile native apps (iOS/Android)
 
 ## 🐛 Troubleshooting

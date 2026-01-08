@@ -61,16 +61,16 @@ class NotificationAgent(BaseAgent):
             
         return decisions
 
-    def act(self, decision: Dict[str, Any]) -> Any:
+    def act(self, decision: Dict[str, Any], **kwargs) -> Any:
         """
         Act: "Send" the notifications (log them and store in state)
-        In a real app, this would call Twilio, SendGrid, etc.
         """
+        dry_run = kwargs.get("dry_run", False)
         notifications_sent = []
         
         for item in decision["to_send"]:
             # Simulate sending
-            log_msg = f"[NOTIFICATION SENT] To: {item.get('recipient')} | Msg: {item.get('message')}"
+            log_msg = f"[NOTIFICATION {'(DRY RUN)' if dry_run else 'SENT'}] To: {item.get('recipient')} | Msg: {item.get('message')}"
             logger.info(log_msg)
             
             # Store in state for frontend to see
@@ -81,11 +81,18 @@ class NotificationAgent(BaseAgent):
                 "message": item["message"],
                 "timestamp": "now" # In real app, use datetime
             }
-            self.sent_notifications.append(notification_record)
+            
+            if not dry_run:
+                self.sent_notifications.append(notification_record)
+            
             notifications_sent.append(notification_record)
             
         return {
             "agent": self.name,
             "status": "success",
-            "notifications_sent": notifications_sent
+            "notifications_sent": notifications_sent if dry_run else self.sent_notifications[-len(decision["to_send"]):]
         }
+
+    def get_history(self) -> List[Dict[str, Any]]:
+        """Return all sent notifications"""
+        return self.sent_notifications

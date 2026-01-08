@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+import json
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
@@ -33,6 +34,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============= WEBSOCKET MANAGER =============
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception:
+                disconnected.append(connection)
+        
+        for connection in disconnected:
+            if connection in self.active_connections:
+                self.active_connections.remove(connection)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 # ============= HEALTH & INFO =============
 
@@ -84,6 +122,9 @@ async def update_table(table_id: int, table_update: TableUpdate, db: Session = D
     # Trigger agent orchestration after table update
     orchestrator.run_cycle(db)
     
+    # Notify via WebSocket
+    await manager.broadcast({"type": "TABLE_UPDATE", "data": {"id": table_id, "status": db_table.status}})
+    
     return db_table
 
 # ============= QUEUE ENDPOINTS =============
@@ -112,6 +153,9 @@ async def join_queue(entry: QueueEntryCreate, db: Session = Depends(get_db)):
     # Trigger agent orchestration
     orchestrator.run_cycle(db)
     
+    # Notify via WebSocket
+    await manager.broadcast({"type": "QUEUE_UPDATE", "action": "ADD", "data": {"id": db_entry.id, "name": db_entry.name}})
+    
     return db_entry
 
 @app.delete("/api/queue/{entry_id}")
@@ -127,7 +171,18 @@ async def remove_from_queue(entry_id: int, db: Session = Depends(get_db)):
     # Reorder queue
     orchestrator.run_cycle(db)
     
+    # Notify via WebSocket
+    await manager.broadcast({"type": "QUEUE_UPDATE", "action": "REMOVE", "data": {"id": entry_id}})
+    
     return {"message": "Removed from queue"}
+
+@app.get("/api/queue/status/{phone}", response_model=QueueEntryResponse)
+async def get_customer_status(phone: str, db: Session = Depends(get_db)):
+    """Get status for a specific customer by phone number"""
+    entry = db.query(QueueEntry).filter(QueueEntry.phone == phone).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Customer not found in queue")
+    return entry
 
 # ============= AGENT ENDPOINTS =============
 
@@ -142,9 +197,10 @@ async def get_agent_status(db: Session = Depends(get_db)):
     """Get current agent analysis without making changes"""
     environment = orchestrator.prepare_environment(db)
     
-    # Run agents in read-only mode
-    table_result = orchestrator.table_agent.run(environment)
-    queue_result = orchestrator.queue_agent.run(environment)
+    # Run agents in read-only mode with DB access for sense-upgrades
+    table_result = orchestrator.table_agent.run(environment, dry_run=True, db=db)
+    queue_result = orchestrator.queue_agent.run(environment, dry_run=True, db=db)
+    eta_result = orchestrator.eta_agent.run(environment, dry_run=True, db=db)
     
     notification_env = environment.copy()
     notification_env.update({
@@ -152,12 +208,17 @@ async def get_agent_status(db: Session = Depends(get_db)):
         "table_alerts": table_result.get("alerts", []),
         "queue_updates": queue_result.get("queue_updates", [])
     })
-    notification_result = orchestrator.notification_agent.run(notification_env)
+    notification_result = orchestrator.notification_agent.run(notification_env, dry_run=True, db=db)
+    
+    # Run Analytics Agent in read-only mode
+    analytics_result = orchestrator.analytics_agent.run(environment, dry_run=True, db=db)
     
     return {
         "table_analysis": table_result,
         "queue_analysis": queue_result,
+        "eta_analysis": eta_result,
         "notification_analysis": notification_result,
+        "analytics_analysis": analytics_result,
         "environment_summary": {
             "total_tables": len(environment["tables"]),
             "available_tables": len(environment["available_tables"]),

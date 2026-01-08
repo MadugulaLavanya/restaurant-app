@@ -5,6 +5,7 @@ from agents.table_agent import TableAgent
 from agents.queue_agent import QueueAgent
 from agents.eta_agent import ETAAgent
 from agents.notification_agent import NotificationAgent
+from agents.analytics_agent import AnalyticsAgent
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from models.models import Table, QueueEntry
@@ -23,6 +24,7 @@ class AgentOrchestrator:
         self.queue_agent = QueueAgent()
         self.eta_agent = ETAAgent()
         self.notification_agent = NotificationAgent()
+        self.analytics_agent = AnalyticsAgent()
         logger.info("AgentOrchestrator initialized with all agents")
 
     def prepare_environment(self, db: Session) -> Dict[str, Any]:
@@ -52,13 +54,13 @@ class AgentOrchestrator:
         environment = self.prepare_environment(db)
         
         # Run Table Agent
-        table_result = self.table_agent.run(environment)
+        table_result = self.table_agent.run(environment, db=db)
         
         # Run Queue Agent
-        queue_result = self.queue_agent.run(environment)
+        queue_result = self.queue_agent.run(environment, db=db)
         
         # Run ETA Agent
-        eta_result = self.eta_agent.run(environment)
+        eta_result = self.eta_agent.run(environment, db=db)
         
         # Run Notification Agent (needs results from previous agents)
         notification_environment = environment.copy()
@@ -67,7 +69,10 @@ class AgentOrchestrator:
             "table_alerts": table_result.get("alerts", []),
             "queue_updates": queue_result.get("queue_updates", [])
         })
-        notification_result = self.notification_agent.run(notification_environment)
+        notification_result = self.notification_agent.run(notification_environment, db=db)
+        
+        # Run Analytics Agent
+        analytics_result = self.analytics_agent.run(environment, db=db)
         
         # Apply ETA updates to database
         for eta_update in eta_result.get("eta_updates", []):
@@ -94,6 +99,7 @@ class AgentOrchestrator:
             "queue_agent": queue_result,
             "eta_agent": eta_result,
             "notification_agent": notification_result,
+            "analytics_agent": analytics_result,
             "summary": {
                 "total_tables": len(environment["tables"]),
                 "available_tables": len(environment["available_tables"]),
